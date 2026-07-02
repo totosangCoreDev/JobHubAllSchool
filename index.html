@@ -2567,10 +2567,21 @@
                     const selectOptions = targetRoles.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('');
                     
                     html += `<tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.5rem;">${u.name} ${u.surname} <br><span style="font-size:0.75rem; color:var(--text-muted);">${u.organization}</span></td>
-                        <td style="padding: 0.5rem; font-size:0.875rem;">${u.email}</td>
+                        <td style="padding: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+                            <img src="${getImgUrl(u.profilePic)}" onerror="handleImgError(this)" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); flex-shrink: 0; background: #eee;">
+                            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                                <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                                    <input type="text" id="name_input_${u.id}" value="${u.name || ''}" ${disabled} style="padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: 0.875rem; width: 110px;" placeholder="ชื่อ">
+                                    <input type="text" id="surname_input_${u.id}" value="${u.surname || ''}" ${disabled} style="padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: 0.875rem; width: 110px;" placeholder="นามสกุล">
+                                </div>
+                                <span style="font-size:0.75rem; color:var(--text-muted);">${u.organization || ''}</span>
+                            </div>
+                        </td>
                         <td style="padding: 0.5rem;">
-                            <select id="role_select_${u.id}" ${disabled} style="padding: 0.25rem;">
+                            <input type="email" id="email_input_${u.id}" value="${u.email || ''}" ${disabled} style="padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: 0.875rem; width: 180px;" placeholder="อีเมล">
+                        </td>
+                        <td style="padding: 0.5rem;">
+                            <select id="role_select_${u.id}" ${disabled} style="padding: 0.25rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: 0.875rem;">
                                 ${selectOptions}
                             </select>
                         </td>
@@ -2587,23 +2598,49 @@
         }
         
         async function changeUserRole(userId) {
+            const nameEl = document.getElementById(`name_input_${userId}`);
+            const surnameEl = document.getElementById(`surname_input_${userId}`);
+            const emailEl = document.getElementById(`email_input_${userId}`);
             const selectEl = document.getElementById(`role_select_${userId}`);
+            
             if(!selectEl) return;
             const newRole = selectEl.value;
+            const name = nameEl ? nameEl.value.trim() : '';
+            const surname = surnameEl ? surnameEl.value.trim() : '';
+            const email = emailEl ? emailEl.value.trim() : '';
+
+            if (nameEl && !name) {
+                return showToast('กรุณากรอกชื่อ', 'danger');
+            }
+            if (emailEl && !email) {
+                return showToast('กรุณากรอกอีเมล', 'danger');
+            }
+
             try {
-                showToast('กำลังเปลี่ยนสิทธิ์...');
+                showToast('กำลังบันทึกข้อมูล...');
                 await api('updateRole', { 
                     role: currentUser.role, 
                     idOrganization: currentUser.idOrganization, 
                     userId: currentUser.id, 
                     targetUserId: userId, 
-                    newRole: newRole 
+                    newRole: newRole,
+                    name: name,
+                    surname: surname,
+                    email: email
                 });
-                showToast('เปลี่ยนสิทธิ์เรียบร้อยแล้ว');
-                // Update local session if changing own role
+                showToast('บันทึกข้อมูลเรียบร้อยแล้ว');
+                // Update local session if changing own details
                 if (currentUser.id.toString() === userId.toString()) {
                     currentUser.role = newRole;
+                    if (name) currentUser.name = name;
+                    if (surname) currentUser.surname = surname;
+                    if (email) currentUser.email = email;
                     localStorage.setItem('user_session', JSON.stringify(currentUser));
+                    
+                    const userNameEl = document.getElementById('userName');
+                    if (userNameEl) {
+                        userNameEl.innerText = `${currentUser.name} (${currentUser.role})`;
+                    }
                 }
                 loadUsersForManagement();
             } catch (err) {
