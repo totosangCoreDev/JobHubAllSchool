@@ -1386,7 +1386,7 @@
 
                 const btnManageUsers = document.getElementById('btnManageUsers');
                 if(btnManageUsers) {
-                    if (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector') {
+                    if (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') {
                         btnManageUsers.classList.remove('hidden');
                     } else {
                         btnManageUsers.classList.add('hidden');
@@ -1417,7 +1417,7 @@
             // Save currently checked teachers so they don't disappear on re-render
             const currentCheckedList = Array.from(document.querySelectorAll('.teacher-checkbox:checked')).map(cb => cb.value.toString().trim());
 
-            const teachers = await api('getAllTeachers', { role: currentUser.role, idOrganization: currentUser.idOrganization }, { silent: true });
+            const teachers = await api('getAllTeachers', { role: currentUser.role, idOrganization: currentUser.idOrganization, userId: currentUser.id }, { silent: true });
 
             // Build dynamic group buttons, handling comma-separated lists
             let allGroups = [];
@@ -1638,7 +1638,7 @@
                 if (newName && newName.trim() !== '' && newName.trim() !== currentContextMenuGroup) {
                     try {
                         showToast(`กำลังเปลี่ยนชื่อกลุ่มเป็น ${newName.trim()}...`);
-                        const success = await api('renameWorkGroup', { oldName: currentContextMenuGroup, newName: newName.trim() });
+                        const success = await api('renameWorkGroup', { oldName: currentContextMenuGroup, newName: newName.trim(), userId: currentUser.id });
                         showToast('เปลี่ยนชื่อกลุ่มสำเร็จ!');
                         updateSavedOrderName(currentContextMenuGroup, newName.trim());
                         loadTeacherChecklist();
@@ -1654,7 +1654,7 @@
                 if (confirm(`⚠️ ยืนยันการลบกลุ่มงาน "${currentContextMenuGroup}"?\n\n(กลุ่มงานจะถูกลบออกจากทุกคน แต่รายชื่อครูและข้อมูลงานจะไม่หายไป)`)) {
                     try {
                         showToast('กำลังลบกลุ่ม...');
-                        await api('deleteWorkGroup', { groupName: currentContextMenuGroup });
+                        await api('deleteWorkGroup', { groupName: currentContextMenuGroup, userId: currentUser.id });
                         showToast('ลบกลุ่มเรียบร้อยแล้ว');
                         updateSavedOrderName(currentContextMenuGroup, null);
                         loadTeacherChecklist();
@@ -1709,7 +1709,7 @@
             btn.innerText = 'กำลังบันทึก...';
 
             try {
-                await api('assignWorkGroup', { groupName: groupName, userIds: selectedIds });
+                await api('assignWorkGroup', { groupName: groupName, userIds: selectedIds, userId: currentUser.id });
                 showToast(`เพิ่มกลุ่ม "${groupName}" เรียบร้อยแล้ว!`);
                 closeAddGroupModal();
                 loadTeacherChecklist(); // Reload UI to show new group buttons
@@ -2544,6 +2544,14 @@
                         
                         // Disable modifying SuperAdmin or other SchoolDirectors
                         if (u.role === 'SuperAdmin' || u.role === 'SchoolDirector') {
+                            disabled = 'disabled';
+                        }
+                    } else if (currentUser.role === 'SchoolAdmin') {
+                        // SchoolAdmin can only assign Teacher or User
+                        targetRoles = ['Teacher', 'User'];
+                        
+                        // Disable modifying SuperAdmin, SchoolDirectors, or other SchoolAdmins
+                        if (u.role === 'SuperAdmin' || u.role === 'SchoolDirector' || u.role === 'SchoolAdmin') {
                             disabled = 'disabled';
                         }
                     } else if (currentUser.role !== 'SuperAdmin') {
