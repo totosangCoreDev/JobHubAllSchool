@@ -1828,6 +1828,7 @@
                 const orgName = job.organizationName || 'Unknown Organization';
                 const jobOrgId = (job.idOrganization || job['ID organization'] || job['idorganization'] || job['ID_organization'] || '').toString().trim();
                 const userOrgId = (currentUser.idOrganization || '').toString().trim();
+                const jobIsPublic = job.IsPublic === true || job.IsPublic === 'true' || job.IsPublic === 'TRUE';
 
                 const termBadge = (yearDisplay && semDisplay) ? `<span style="font-size: 0.75rem; background: #eef2ff; color: var(--primary); padding: 4px 8px; border-radius: 4px; border: 1px solid #c7d2fe; display: inline-flex; align-items: center; font-weight: 600;">เทอม ${semDisplay}/${yearDisplay}</span>` : '';
                 const schoolBadge = `<div style="margin-bottom: 0.5rem;"><span style="font-size: 0.75rem; background: #fdf4ff; color: #86198f; padding: 4px 12px; border-radius: 4px; border: 1px solid #f5d0fe; display: inline-flex; align-items: center; font-weight: 600; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">🏫 ${orgName}</span></div>`;
@@ -1872,6 +1873,7 @@
                 card.innerHTML = `
                     ${isAdmin ? `
                         <div class="edit-btn" onclick="openEditJobModal('${job.id || job.JobID}')" title="Edit Job" style="top: 12px; left: 12px; position: absolute; z-index: 10;"></div>
+                        <button type="button" onclick="toggleJobPublicStatusUI('${job.id || job.JobID}')" style="top: 12px; right: 46px; position: absolute; z-index: 10; width: auto; height: 28px; padding: 0 12px; font-size: 0.75rem; font-weight: 700; border-radius: 9999px; cursor: pointer; transition: all 0.2s; background: ${jobIsPublic ? '#d1fae5' : '#fee2e2'}; color: ${jobIsPublic ? '#065f46' : '#991b1b'}; border: 1px solid ${jobIsPublic ? '#a7f3d0' : '#fca5a5'}; display: flex; align-items: center; justify-content: center;" title="Toggle Public/Private">${jobIsPublic ? 'Public' : 'Private'}</button>
                         <div class="delete-btn" onclick="deleteJobUI('${job.JobID}', '${job.Title.replace(/'/g, "\\'")}')" title="Delete Job" style="top: 12px; right: 12px; position: absolute; z-index: 10;"></div>
                     ` : ''}
                     <div style="display: flex; flex-direction: column; height: 100%; position: relative;">
@@ -2092,6 +2094,19 @@
                 loadJobs(currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') ? 'admin' : 'teacher');
             } catch (err) {
                 showToast('Error deleting job: ' + err.message, 'danger');
+            }
+        }
+
+        async function toggleJobPublicStatusUI(jobId) {
+            try {
+                showToast('กำลังเปลี่ยนสถานะ...');
+                const res = await api('toggleJobPublicStatus', { jobId: jobId, userId: currentUser.id });
+                if (res.success) {
+                    showToast(res.isPublic ? 'เปลี่ยนเป็น สาธารณะ (Public)' : 'เปลี่ยนเป็น ส่วนตัว (Private)');
+                    loadJobs(currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') ? 'admin' : 'teacher');
+                }
+            } catch (err) {
+                showToast('Error: ' + err.message, 'danger');
             }
         }
 
