@@ -1155,7 +1155,7 @@
         }
 
         async function api(action, data = {}, options = { silent: false }) {
-            if (!options.silent) showLoading(true);
+            if (!options.silent) showLoading(true, options.useProgress);
 
             try {
                 const response = await fetch(SCRIPT_URL, {
@@ -2019,18 +2019,22 @@
                 assignedUserIds: selectedIds
             };
 
-            if (currentEditingJobId) {
-                data.id = currentEditingJobId;
-                await api('updateJob', data);
-                showToast('Job updated successfully!');
-            } else {
-                await api('createJob', data);
-                showToast('Job created and assigned!');
-            }
-
-            // Close & Refresh
             closeCreateJobModal();
-            loadJobs('admin');
+            showToast('กำลังบันทึกข้อมูลงานในเบื้องหลัง...');
+
+            try {
+                if (currentEditingJobId) {
+                    data.id = currentEditingJobId;
+                    await api('updateJob', data, { silent: true });
+                    showToast('แก้ไขข้อมูลงานสำเร็จ!');
+                } else {
+                    await api('createJob', data, { silent: true });
+                    showToast('สร้างและมอบหมายงานสำเร็จ!');
+                }
+                loadJobs('admin');
+            } catch (err) {
+                showToast('เกิดข้อผิดพลาด: ' + err.message, 'danger');
+            }
         }
 
         function openSelectJobGroupModal(jobId, currentGroup) {
