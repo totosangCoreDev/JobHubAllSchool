@@ -565,7 +565,7 @@
                 <img src="" alt="Avatar" id="userAvatar" class="avatar">
                 <button type="button" onclick="refreshData()" title="Refresh Data"
                     style="width: auto; padding: 0.5rem; background: none; border: none; font-size: 1.25rem; cursor: pointer; color: var(--primary);">🔄</button>
-                <button type="button" onclick="showSettings()" style="width: auto; padding: 0.5rem 1rem;"
+                <button type="button" id="btnSettings" onclick="showSettings()" style="width: auto; padding: 0.5rem 1rem;"
                     class="secondary">Settings</button>
                 <button type="button" onclick="logout()" style="width: auto; padding: 0.5rem 1rem;"
                     class="secondary">Logout</button>
@@ -590,6 +590,9 @@
             <p style="margin-top: 1rem; text-align: center; font-size: 0.875rem;">
                 No account? <a href="#" onclick="toggleAuth(true)">Register here</a>
             </p>
+            <div style="margin-top: 1.5rem; text-align: center; border-top: 1px solid var(--border); padding-top: 1rem;">
+                <button type="button" class="secondary" onclick="loginAsGuest()" style="background-color: var(--success); font-size: 0.95rem; width: 100%;">เข้าชมทั่วไป (Guest)</button>
+            </div>
         </div>
 
         <!-- Register View -->
@@ -1288,6 +1291,21 @@
             });
         }
 
+        function loginAsGuest() {
+            currentUser = {
+                id: 'guest',
+                name: 'ผู้เข้าชมทั่วไป',
+                surname: 'Guest',
+                email: '',
+                organization: '',
+                idOrganization: '',
+                role: 'User',
+                profilePic: ''
+            };
+            localStorage.setItem('user_session', JSON.stringify(currentUser));
+            showDashboard();
+        }
+
         async function login() {
             const id = document.getElementById('loginId').value;
             const passwordRaw = document.getElementById('loginPass').value;
@@ -1348,6 +1366,16 @@
             document.getElementById('userName').innerText = `${currentUser.name} (${currentUser.role})`;
             document.getElementById('userAvatar').src = getImgUrl(currentUser.profilePic);
 
+            // Hide Settings button for guest users
+            const btnSettings = document.getElementById('btnSettings');
+            if (btnSettings) {
+                if (currentUser.id === 'guest') {
+                    btnSettings.classList.add('hidden');
+                } else {
+                    btnSettings.classList.remove('hidden');
+                }
+            }
+
             // Silent Data Initialization
             if (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') {
                 document.getElementById('adminView').classList.remove('hidden');
@@ -1368,6 +1396,17 @@
                 document.getElementById('adminView').classList.add('hidden');
                 document.getElementById('teacherView').classList.remove('hidden');
                 document.getElementById('submissionView').classList.add('hidden');
+
+                // Dynamic Heading for User vs Teacher
+                const headingEl = document.querySelector('#teacherView h2');
+                if (headingEl) {
+                    if (currentUser.role === 'User') {
+                        headingEl.innerText = 'งานสาธารณะ (Public Jobs)';
+                    } else {
+                        headingEl.innerText = 'งานที่ได้รับมอบหมาย (Assigned Jobs)';
+                    }
+                }
+
                 loadJobs('teacher');
             }
         }
@@ -1742,7 +1781,7 @@
 
         function filterByTerm(key) {
             activeTermFilter = key;
-            const role = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Director') ? 'admin' : 'teacher';
+            const role = currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') ? 'admin' : 'teacher';
             buildTermTabs(allJobs, role); // Rebuild to update active highlight
             renderJobCards(allJobs, role);
         }
@@ -1787,10 +1826,18 @@
                 const semDisplay = job.Semester || job['ภาคเรียนที่'] || '';
                 const workGroup = job.WorkGroup || job['กลุ่มงาน'] || '';
                 const orgName = job.organizationName || 'Unknown Organization';
+                const jobOrgId = (job.idOrganization || job['ID organization'] || job['idorganization'] || job['ID_organization'] || '').toString().trim();
+                const userOrgId = (currentUser.idOrganization || '').toString().trim();
 
                 const termBadge = (yearDisplay && semDisplay) ? `<span style="font-size: 0.75rem; background: #eef2ff; color: var(--primary); padding: 4px 8px; border-radius: 4px; border: 1px solid #c7d2fe; display: inline-flex; align-items: center; font-weight: 600;">เทอม ${semDisplay}/${yearDisplay}</span>` : '';
                 const schoolBadge = `<div style="margin-bottom: 0.5rem;"><span style="font-size: 0.75rem; background: #fdf4ff; color: #86198f; padding: 4px 12px; border-radius: 4px; border: 1px solid #f5d0fe; display: inline-flex; align-items: center; font-weight: 600; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">🏫 ${orgName}</span></div>`;
-                const isAdmin = currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin');
+                
+                // Admin can edit/delete and manage group for their own school only (unless SuperAdmin)
+                const isAdmin = currentUser && (
+                    currentUser.role === 'SuperAdmin' ||
+                    ((currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') && jobOrgId === userOrgId)
+                );
+
                 const groupBadge = workGroup ? `<span onclick="${isAdmin ? `changeJobWorkGroup('${job.id}', '${workGroup.replace(/'/g, "\\'")}')` : ''}" style="font-size: 0.75rem; background: #fff7ed; color: #c2410c; padding: 4px 8px; border-radius: 4px; border: 1px solid #ffedd5; display: inline-flex; align-items: center; font-weight: 600; cursor: ${isAdmin ? 'pointer' : 'default'};" title="${isAdmin ? 'Click to edit Group' : ''}">📂 ${workGroup}</span>` : (isAdmin ? `<span onclick="changeJobWorkGroup('${job.id}', '')" style="font-size: 0.75rem; background: #fff7ed; color: #c2410c; padding: 4px 8px; border-radius: 4px; border: 1px solid #ffedd5; display: inline-flex; align-items: center; font-weight: 600; cursor: pointer;" title="Click to add Group">+ เพิ่มกลุ่มงาน</span>` : '');
 
                 let deadlineDisplay = 'Invalid Date';
@@ -1799,6 +1846,27 @@
                     if (!isNaN(d.getTime())) {
                         deadlineDisplay = d.toLocaleString('th-TH');
                     }
+                }
+
+                const canSubmit = currentUser && (
+                    currentUser.role === 'Teacher' || 
+                    currentUser.role === 'SchoolDirector' || 
+                    currentUser.role === 'SchoolAdmin' || 
+                    currentUser.role === 'SuperAdmin'
+                );
+
+                let actionButtonsHtml = '';
+                if (canSubmit) {
+                    actionButtonsHtml = `
+                        <div style="display: flex; gap: 0.5rem; margin-top: auto; width: 100%;">
+                            <button type="button" onclick="openBoardAndFocusSubmit('${job.id || job.JobID}')" style="flex: 1; padding: 0.75rem 0.5rem; background: var(--success); color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 0.9rem; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">📤 ส่งงาน</button>
+                            <button type="button" onclick="openBoard('${job.id || job.JobID}')" style="flex: 1; padding: 0.75rem 0.5rem; background: var(--primary); color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.2s; font-size: 0.9rem; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">📂 ดูบอร์ด</button>
+                        </div>
+                    `;
+                } else {
+                    actionButtonsHtml = `
+                        <button type="button" onclick="openBoard('${job.id || job.JobID}')" style="width: 100%; padding: 0.75rem; background: var(--primary); color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: auto; font-size: 0.9rem; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">📂 ดูบอร์ดส่งงาน</button>
+                    `;
                 }
 
                 card.innerHTML = `
@@ -1843,7 +1911,7 @@
                         
                         <div class="deadline" style="margin-bottom: 1rem; color: #ff4d4f; font-weight: 600; font-size: 0.875rem;">Deadline: ${deadlineDisplay}</div>
                     </div>
-                    <button type="button" onclick="openBoard('${job.id || job.JobID}')" style="width: 100%; padding: 0.75rem; background: var(--primary); color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.2s;">View Board</button>
+                    ${actionButtonsHtml}
                 `;
                 container.appendChild(card);
             });
@@ -1945,6 +2013,7 @@
                 isPublic: document.getElementById('jobIsPublic') ? document.getElementById('jobIsPublic').checked : false,
                 idOrganization: currentUser.idOrganization,
                 role: currentUser.role,
+                userId: currentUser.id,
                 assignedUserIds: selectedIds
             };
 
@@ -2002,10 +2071,10 @@
         async function confirmSelectJobGroup(jobId, newGroup) {
             try {
                 showToast('กำลังอัปเดตกลุ่มงาน...');
-                await api('updateJobWorkGroup', { jobId, workGroup: newGroup });
+                await api('updateJobWorkGroup', { jobId, workGroup: newGroup, userId: currentUser.id });
                 showToast('อัปเกตกลุ่มงานเรียบร้อยแล้ว');
                 closeSelectJobGroupModal();
-                loadJobs(currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Director') ? 'admin' : 'teacher');
+                loadJobs(currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') ? 'admin' : 'teacher');
             } catch (err) {
                 showToast('Error: ' + err.message, 'danger');
             }
@@ -2018,15 +2087,25 @@
         async function deleteJobUI(jobId, title) {
             if (!confirm(`Confirm deletion of Job: "${title}"?\nThis will remove ALL related submissions from the Sheet.`)) return;
             try {
-                await api('deleteJob', { jobId });
+                await api('deleteJob', { jobId, userId: currentUser.id });
                 showToast('Job and related data deleted');
-                loadJobs('admin');
+                loadJobs(currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') ? 'admin' : 'teacher');
             } catch (err) {
-                showToast('Error deleting job', 'danger');
+                showToast('Error deleting job: ' + err.message, 'danger');
             }
         }
 
         // --- Submission Board ---
+        function openBoardAndFocusSubmit(id) {
+            openBoard(id);
+            setTimeout(() => {
+                const form = document.getElementById('submissionForm');
+                if (form) {
+                    form.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 300);
+        }
+
         async function openBoard(id) {
             const job = allJobs.find(j => (j.id || j.JobID || '').toString().trim() === id.toString().trim());
             if (!job) return showToast('Job details not found', 'danger');
@@ -2093,7 +2172,7 @@
             board.className = 'bookshelf-bg';
 
             subs.forEach((sub, index) => {
-                const isAdmin = currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Director');
+                const isAdmin = currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin');
                 const subUserId = (sub.user && sub.user.id) ? sub.user.id.toString().trim().toLowerCase() : '';
                 const currentUserId = (currentUser && currentUser.id) ? currentUser.id.toString().trim().toLowerCase() : '';
 
@@ -2137,10 +2216,10 @@
         async function deleteSubmissionUI(submissionId) {
             if (!confirm('Are you sure you want to delete this submission?')) return;
             try {
-                await api('deleteSubmission', { submissionId });
+                await api('deleteSubmission', { submissionId, userId: currentUser.id });
                 showToast('Submission deleted from Sheet');
                 loadSubmissions(activeJob.JobID);
-                loadJobs(currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Director') ? 'admin' : 'teacher');
+                loadJobs(currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') ? 'admin' : 'teacher');
             } catch (err) {
                 showToast('Error: ' + err.message, 'danger');
             }
@@ -2443,7 +2522,7 @@
             const container = document.getElementById('usersListContainer');
             container.innerHTML = 'Loading users...';
             try {
-                const users = await api('getAllUsersForManagement', { role: currentUser.role, idOrganization: currentUser.idOrganization });
+                const users = await api('getAllUsersForManagement', { role: currentUser.role, idOrganization: currentUser.idOrganization, userId: currentUser.id });
                 if(!users || users.length === 0) {
                     container.innerHTML = '<p>No users found.</p>';
                     return;
@@ -2455,8 +2534,29 @@
                 html += '<thead><tr style="border-bottom: 2px solid var(--border);"><th style="padding: 0.5rem;">Name</th><th style="padding: 0.5rem;">Email</th><th style="padding: 0.5rem;">Role</th><th style="padding: 0.5rem;">Action</th></tr></thead><tbody>';
                 
                 users.forEach(u => {
-                    const selectOptions = roles.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('');
-                    const disabled = (u.role === 'SuperAdmin' && currentUser.role !== 'SuperAdmin') ? 'disabled' : '';
+                    // Restrict role selection for SchoolDirector
+                    let targetRoles = roles;
+                    let disabled = '';
+
+                    if (currentUser.role === 'SchoolDirector') {
+                        // SchoolDirector cannot assign SuperAdmin or SchoolDirector
+                        targetRoles = ['SchoolAdmin', 'Teacher', 'User'];
+                        
+                        // Disable modifying SuperAdmin or other SchoolDirectors
+                        if (u.role === 'SuperAdmin' || u.role === 'SchoolDirector') {
+                            disabled = 'disabled';
+                        }
+                    } else if (currentUser.role !== 'SuperAdmin') {
+                        // Other roles shouldn't even be here, but just in case
+                        disabled = 'disabled';
+                    }
+
+                    // If target user has a role not in targetRoles list, add it as a selected option so it doesn't break dropdown visual
+                    if (!targetRoles.includes(u.role)) {
+                        targetRoles = [u.role].concat(targetRoles);
+                    }
+
+                    const selectOptions = targetRoles.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('');
                     
                     html += `<tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.5rem;">${u.name} ${u.surname} <br><span style="font-size:0.75rem; color:var(--text-muted);">${u.organization}</span></td>
@@ -2484,7 +2584,13 @@
             const newRole = selectEl.value;
             try {
                 showToast('กำลังเปลี่ยนสิทธิ์...');
-                await api('updateRole', { role: currentUser.role, idOrganization: currentUser.idOrganization, targetUserId: userId, newRole: newRole });
+                await api('updateRole', { 
+                    role: currentUser.role, 
+                    idOrganization: currentUser.idOrganization, 
+                    userId: currentUser.id, 
+                    targetUserId: userId, 
+                    newRole: newRole 
+                });
                 showToast('เปลี่ยนสิทธิ์เรียบร้อยแล้ว');
                 // Update local session if changing own role
                 if (currentUser.id.toString() === userId.toString()) {
