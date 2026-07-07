@@ -1861,9 +1861,12 @@
                 const schoolBadge = `<div style="margin-bottom: 0.5rem;"><span style="font-size: 0.75rem; background: #fdf4ff; color: #86198f; padding: 4px 12px; border-radius: 4px; border: 1px solid #f5d0fe; display: inline-flex; align-items: center; font-weight: 600; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">🏫 ${orgName}</span></div>`;
                 
                 // Admin can edit/delete and manage group for their own school only (unless SuperAdmin)
+                // New Rule: Must also be the creator of the job (unless SuperAdmin or CreatedBy is empty)
                 const isAdmin = currentUser && (
                     currentUser.role === 'SuperAdmin' ||
-                    ((currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') && jobOrgId === userOrgId)
+                    ((currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') && 
+                     jobOrgId === userOrgId && 
+                     (!job.CreatedBy || job.CreatedBy.toString().trim() === currentUser.id.toString().trim()))
                 );
 
                 const groupBadge = workGroup ? `<span onclick="${isAdmin ? `changeJobWorkGroup('${job.id}', '${workGroup.replace(/'/g, "\\'")}')` : ''}" style="font-size: 0.75rem; background: #fff7ed; color: #c2410c; padding: 4px 8px; border-radius: 4px; border: 1px solid #ffedd5; display: inline-flex; align-items: center; font-weight: 600; cursor: ${isAdmin ? 'pointer' : 'default'};" title="${isAdmin ? 'Click to edit Group' : ''}">📂 ${workGroup}</span>` : (isAdmin ? `<span onclick="changeJobWorkGroup('${job.id}', '')" style="font-size: 0.75rem; background: #fff7ed; color: #c2410c; padding: 4px 8px; border-radius: 4px; border: 1px solid #ffedd5; display: inline-flex; align-items: center; font-weight: 600; cursor: pointer;" title="Click to add Group">+ เพิ่มกลุ่มงาน</span>` : '');
