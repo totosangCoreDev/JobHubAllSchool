@@ -565,6 +565,7 @@
                 <img src="" alt="Avatar" id="userAvatar" class="avatar">
                 <button type="button" onclick="refreshData()" title="Refresh Data"
                     style="width: auto; padding: 0.5rem; background: none; border: none; font-size: 1.25rem; cursor: pointer; color: var(--primary);">🔄</button>
+                <a href="https://docs.google.com/spreadsheets/d/19mnCJnFpBb3Lc6PSfU8rStN3SAL8QajVaK3QBHzPgTI/edit?gid=131443184#gid=131443184" target="_blank" id="linkAdminSheet" class="hidden" style="width: auto; padding: 0.5rem 1rem; text-decoration: none; border-radius: 0.5rem; background: var(--text-muted); color: white; font-weight: 600; font-size: 0.875rem; text-align: center; display: inline-block; transition: background 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--text-muted)'">Admin Sheet</a>
                 <button type="button" id="btnSettings" onclick="showSettings()" style="width: auto; padding: 0.5rem 1rem;"
                     class="secondary">Settings</button>
                 <button type="button" onclick="logout()" style="width: auto; padding: 0.5rem 1rem;"
@@ -1366,6 +1367,22 @@
             document.getElementById('userName').innerText = `${currentUser.name} (${currentUser.role})`;
             document.getElementById('userAvatar').src = getImgUrl(currentUser.profilePic);
 
+            // Display Admin Sheet link only for specified emails
+            const allowedEmails = [
+                'skn.mittraphap95@skn.go.th',
+                'catmusics1983@gmail.com',
+                'krootoa@gmail.com',
+                'rutthakorn@mp95.ac.th'
+            ];
+            const linkAdminSheet = document.getElementById('linkAdminSheet');
+            if (linkAdminSheet) {
+                if (currentUser && currentUser.email && allowedEmails.includes(currentUser.email.trim().toLowerCase())) {
+                    linkAdminSheet.classList.remove('hidden');
+                } else {
+                    linkAdminSheet.classList.add('hidden');
+                }
+            }
+
             // Hide Settings button for guest users
             const btnSettings = document.getElementById('btnSettings');
             if (btnSettings) {
@@ -1794,7 +1811,17 @@
                 return db - da;
             });
 
-            const filtered = activeTermFilter === 'all' ? sorted : sorted.filter(job => {
+            // Safeguard: SchoolDirector can only see their own school's jobs
+            let filteredJobs = sorted;
+            if (currentUser && currentUser.role === 'SchoolDirector') {
+                const userOrgId = (currentUser.idOrganization || '').toString().trim();
+                filteredJobs = sorted.filter(job => {
+                    const jobOrgId = (job.idOrganization || job['ID organization'] || job['idorganization'] || job['ID_organization'] || '').toString().trim();
+                    return jobOrgId === userOrgId;
+                });
+            }
+
+            const filtered = activeTermFilter === 'all' ? filteredJobs : filteredJobs.filter(job => {
                 const y = job.AcademicYear || job['ปีการศึกษา'] || '';
                 const s = job.Semester || job['ภาคเรียนที่'] || '';
                 const termKey = `${s}/${y}`;
