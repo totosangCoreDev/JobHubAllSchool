@@ -1902,7 +1902,9 @@
                         <div class="edit-btn" onclick="openEditJobModal('${job.id || job.JobID}')" title="Edit Job" style="top: 12px; left: 12px; position: absolute; z-index: 10;"></div>
                         <button type="button" onclick="toggleJobPublicStatusUI('${job.id || job.JobID}')" style="top: 12px; right: 46px; position: absolute; z-index: 10; width: auto; height: 28px; padding: 0 12px; font-size: 0.75rem; font-weight: 700; border-radius: 9999px; cursor: pointer; transition: all 0.2s; background: ${jobIsPublic ? '#d1fae5' : '#fee2e2'}; color: ${jobIsPublic ? '#065f46' : '#991b1b'}; border: 1px solid ${jobIsPublic ? '#a7f3d0' : '#fca5a5'}; display: flex; align-items: center; justify-content: center;" title="Toggle Public/Private">${jobIsPublic ? 'Public' : 'Private'}</button>
                         <div class="delete-btn" onclick="deleteJobUI('${job.JobID}', '${job.Title.replace(/'/g, "\\'")}')" title="Delete Job" style="top: 12px; right: 12px; position: absolute; z-index: 10;"></div>
-                    ` : ''}
+                    ` : `
+                        <span style="top: 12px; right: 12px; position: absolute; z-index: 10; width: auto; height: 28px; padding: 0 12px; font-size: 0.75rem; font-weight: 700; border-radius: 9999px; cursor: default; background: ${jobIsPublic ? '#d1fae5' : '#fee2e2'}; color: ${jobIsPublic ? '#065f46' : '#991b1b'}; border: 1px solid ${jobIsPublic ? '#a7f3d0' : '#fca5a5'}; display: flex; align-items: center; justify-content: center;" title="Status">${jobIsPublic ? 'Public' : 'Private'}</span>
+                    `}
                     <div style="display: flex; flex-direction: column; height: 100%; position: relative;">
                         <!-- Inset content to avoid buttons -->
                         <div style="padding-left: 28px; padding-right: 28px;">
