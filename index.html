@@ -480,13 +480,21 @@
 
         #assignedUserList {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: center;
             gap: 1.5rem;
-            justify-content: center;
             padding: 2rem;
             background: rgba(255, 255, 255, 0.5);
             border-radius: 1rem;
             margin-bottom: 2rem;
+        }
+
+        #assignedUserAvatars {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            justify-content: center;
+            width: 100%;
         }
 
         .user-slot {
@@ -816,7 +824,10 @@
             <p id="boardDesc" style="color: var(--text-muted); margin-bottom: 2rem;"></p>
 
             <!-- Interactive Avatars -->
-            <div id="assignedUserList" class="card"></div>
+            <div id="assignedUserList" class="card">
+                <div id="assignedUserAvatars"></div>
+                <button type="button" id="toggleAssignedListBtn" class="secondary" style="width: auto; margin: 0; display: none; font-size: 0.875rem; padding: 0.5rem 1.5rem; border-radius: 9999px;"></button>
+            </div>
 
             <div id="submissionForm" class="hidden">
                 <h3>Submit Your Work</h3>
@@ -1076,6 +1087,8 @@
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzCJJolGH9tNlP6TPlY-AwXP1_Zm4lCNnQi0abylusB0cxnC3kVUl7TXFCo2ibud6Oq/exec';
         let currentUser = null;
         let activeJob = null;
+        let assignedListExpanded = false;
+        let currentSubmissions = [];
         let activeVisibleRequests = 0;
         let loadingInterval = null;
         let allJobs = [];
@@ -2161,6 +2174,7 @@
             const job = allJobs.find(j => (j.id || j.JobID || '').toString().trim() === id.toString().trim());
             if (!job) return showToast('Job details not found', 'danger');
             activeJob = job;
+            assignedListExpanded = false; // Reset expand/collapse state when switching jobs
 
             // Immediate Navigation
             document.getElementById('adminView').classList.add('hidden');
@@ -2181,17 +2195,75 @@
             loadSubmissions(id);
         }
 
+        function renderAssignedUsers(submissionMap) {
+            const avatarsContainer = document.getElementById('assignedUserAvatars');
+            const toggleBtn = document.getElementById('toggleAssignedListBtn');
+            if (!avatarsContainer) return;
+            avatarsContainer.innerHTML = '';
+
+            const users = activeJob.assignedUsers || [];
+            if (users.length === 0) {
+                avatarsContainer.innerHTML = '<p style="color: var(--text-muted);">No specific teachers assigned to this job.</p>';
+                if (toggleBtn) toggleBtn.style.display = 'none';
+                return;
+            }
+
+            // Sort users: submitted first, then by name (Thai locale)
+            const sortedUsers = [...users].sort((a, b) => {
+                const aSub = !!submissionMap[a.id.toString().trim().toLowerCase()];
+                const bSub = !!submissionMap[b.id.toString().trim().toLowerCase()];
+                if (aSub !== bSub) {
+                    return aSub ? -1 : 1;
+                }
+                return a.name.localeCompare(b.name, 'th');
+            });
+
+            const MAX_VISIBLE = 14;
+            const hasMore = sortedUsers.length > MAX_VISIBLE;
+            const visibleUsers = (hasMore && !assignedListExpanded) ? sortedUsers.slice(0, MAX_VISIBLE) : sortedUsers;
+
+            visibleUsers.forEach(user => {
+                const isSubmitted = !!submissionMap[user.id.toString().trim().toLowerCase()];
+                const slot = document.createElement('div');
+                slot.className = `user-slot ${isSubmitted ? 'submitted' : ''}`;
+                slot.innerHTML = `
+                    <div class="status-badge">✓</div>
+                    <img src="${getImgUrl(user.profilePic)}" 
+                         class="board-avatar ${isSubmitted ? 'submitted' : ''}" 
+                         onerror="handleImgError(this)"
+                         title="ID: ${user.id} - URL: ${user.profilePic}"
+                         onclick="openSubmitPrompt('${user.id}', '${user.name}')">
+                    <span style="font-size: 0.75rem; font-weight: 600;">${user.name}</span>
+                `;
+                avatarsContainer.appendChild(slot);
+            });
+
+            if (toggleBtn) {
+                if (hasMore) {
+                    toggleBtn.style.display = 'block';
+                    if (assignedListExpanded) {
+                        toggleBtn.innerHTML = 'ย่อลง ▴';
+                    } else {
+                        toggleBtn.innerHTML = `ดูทั้งหมด (${sortedUsers.length} คน) ▾`;
+                    }
+                    toggleBtn.onclick = () => {
+                        assignedListExpanded = !assignedListExpanded;
+                        renderAssignedUsers(submissionMap);
+                    };
+                } else {
+                    toggleBtn.style.display = 'none';
+                }
+            }
+        }
+
         async function loadSubmissions(jobId) {
             const subs = await api('getSubmissions', { jobId: jobId.toString().trim() }, { silent: true });
+            currentSubmissions = subs;
             const now = new Date();
             document.getElementById('lastSynced').innerText = `Synced: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
             const board = document.getElementById('submissionBoard');
             board.innerHTML = '';
-
-            // Build assigned list
-            const assignedList = document.getElementById('assignedUserList');
-            assignedList.innerHTML = '';
 
             const submissionMap = {}; // userId -> submission
             subs.forEach(s => {
@@ -2200,25 +2272,7 @@
                 }
             });
 
-            if (activeJob.assignedUsers && activeJob.assignedUsers.length > 0) {
-                activeJob.assignedUsers.forEach(user => {
-                    const isSubmitted = !!submissionMap[user.id.toString().trim().toLowerCase()];
-                    const slot = document.createElement('div');
-                    slot.className = `user-slot ${isSubmitted ? 'submitted' : ''}`;
-                    slot.innerHTML = `
-                        <div class="status-badge">✓</div>
-                        <img src="${getImgUrl(user.profilePic)}" 
-                             class="board-avatar ${isSubmitted ? 'submitted' : ''}" 
-                             onerror="handleImgError(this)"
-                             title="ID: ${user.id} - URL: ${user.profilePic}"
-                             onclick="openSubmitPrompt('${user.id}', '${user.name}')">
-                        <span style="font-size: 0.75rem; font-weight: 600;">${user.name}</span>
-                    `;
-                    assignedList.appendChild(slot);
-                });
-            } else {
-                assignedList.innerHTML = '<p style="color: var(--text-muted);">No specific teachers assigned to this job.</p>';
-            }
+            renderAssignedUsers(submissionMap);
 
             board.className = 'bookshelf-bg';
 
