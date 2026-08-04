@@ -1321,8 +1321,7 @@
             const passwordRaw = document.getElementById('loginPass').value;
             if (!id || !passwordRaw) return showToast('Fill all fields');
 
-            const password = await hash(passwordRaw);
-            const user = await api('login', { id, password });
+            const user = await api('login', { id, password: passwordRaw });
             currentUser = user;
             localStorage.setItem('user_session', JSON.stringify(user));
             showDashboard();
@@ -1337,7 +1336,7 @@
                 showToast("กำลังตรวจสอบข้อมูลและจัดส่งอีเมล...");
                 const res = await api('resetPasswordAndEmail', { userId: id.trim() });
                 if (res && res.success) {
-                    alert("ระบบได้จัดส่งรหัสผ่านใหม่ (Temporary Password) ไปยังอีเมล: " + res.email + " เรียบร้อยแล้วครับ โปรดใช้รหัสผ่านใหม่ในการล็อกอินและเปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบ");
+                    alert("ระบบได้จัดส่งรหัสผ่านของคุณไปยังอีเมล: " + res.email + " เรียบร้อยแล้วครับ");
                     showToast("ส่งอีเมลรหัสผ่านใหม่สำเร็จแล้ว!", "success");
                 } else {
                     showToast("เกิดข้อผิดพลาดในการกู้คืนรหัสผ่าน", "danger");
@@ -1359,8 +1358,6 @@
             if (!regEmail) return showToast('กรุณากรอก Email', 'danger');
             if (!passwordRaw) return showToast('กรุณากรอกรหัสผ่าน', 'danger');
 
-            const password = await hash(passwordRaw);
-
             const data = {
                 id: regId,
                 name: regId,      // ใช้ ID เป็นชื่อชั่วคราว (เปลี่ยนได้ใน Settings)
@@ -1368,7 +1365,7 @@
                 email: regEmail,
                 organization: '',
                 idOrganization: '',
-                password: password
+                password: passwordRaw
             };
 
             const user = await api('register', data);
@@ -2332,9 +2329,8 @@
 
             if (!id || !passRaw) return showToast('Please enter both ID and Password', 'danger');
 
-            const password = await hash(passRaw);
             try {
-                const res = await api('verifyQuickSubmit', { id, password });
+                const res = await api('verifyQuickSubmit', { id, password: passRaw });
                 if (res.success) {
                     closeVerifyModal();
                     // Temporary "override" session just for this submission
@@ -2458,8 +2454,7 @@
             if (!pass) return showToast('Please enter a new password', 'danger');
             if (pass !== confirm) return showToast('Passwords do not match', 'danger');
 
-            const hashed = await hash(pass);
-            await api('updatePassword', { userId: currentUser.id, newPassword: hashed });
+            await api('updatePassword', { userId: currentUser.id, newPassword: pass });
 
             showToast('Password updated successfuly!');
             document.getElementById('setPass').value = '';
