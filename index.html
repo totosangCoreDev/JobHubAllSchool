@@ -592,6 +592,8 @@
             <button type="button" onclick="login()">Login</button>
             <p style="margin-top: 1rem; text-align: center; font-size: 0.875rem;">
                 No account? <a href="#" onclick="toggleAuth(true)">Register here</a>
+                <span style="margin: 0 8px; color: var(--text-muted);">|</span>
+                <a href="#" onclick="forgotPassword()">ลืมรหัสผ่าน?</a>
             </p>
             <div
                 style="margin-top: 1.5rem; text-align: center; border-top: 1px solid var(--border); padding-top: 1rem;">
@@ -1324,6 +1326,28 @@
             currentUser = user;
             localStorage.setItem('user_session', JSON.stringify(user));
             showDashboard();
+        }
+
+        async function forgotPassword() {
+            const id = prompt("กรุณากรอก ID บัญชีผู้ใช้งานของคุณเพื่อรับรหัสผ่านทางอีเมล:");
+            if (!id || !id.trim()) return;
+
+            showLoading(true);
+            try {
+                showToast("กำลังตรวจสอบข้อมูลและจัดส่งอีเมล...");
+                const res = await api('resetPasswordAndEmail', { userId: id.trim() });
+                if (res && res.success) {
+                    alert("ระบบได้จัดส่งรหัสผ่านใหม่ (Temporary Password) ไปยังอีเมล: " + res.email + " เรียบร้อยแล้วครับ โปรดใช้รหัสผ่านใหม่ในการล็อกอินและเปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบ");
+                    showToast("ส่งอีเมลรหัสผ่านใหม่สำเร็จแล้ว!", "success");
+                } else {
+                    showToast("เกิดข้อผิดพลาดในการกู้คืนรหัสผ่าน", "danger");
+                }
+            } catch (err) {
+                alert("ไม่สามารถกู้รหัสผ่านได้: " + err.message);
+                showToast("Error: " + err.message, "danger");
+            } finally {
+                showLoading(false);
+            }
         }
 
         async function register() {
