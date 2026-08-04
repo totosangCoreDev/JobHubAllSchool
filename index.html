@@ -626,6 +626,31 @@
             </p>
         </div>
 
+        <!-- Reset Password View -->
+        <div id="resetPasswordView" class="card hidden" style="max-width: 400px; margin: 4rem auto;">
+            <h2 style="margin-bottom: 0.5rem; color: var(--primary);">ตั้งค่ารหัสผ่านใหม่</h2>
+            <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">
+                รหัสผ่านที่ตั้งใหม่จะเป็นรหัสผ่านปกติเพื่อการแก้ไขในภายหลังได้ง่าย
+            </p>
+            <div class="form-group">
+                <label>ชื่อผู้ใช้งาน (ID)</label>
+                <input type="text" id="resetViewUserId" readonly style="background-color: var(--border); cursor: not-allowed;">
+            </div>
+            <div class="form-group">
+                <label>รหัสผ่านใหม่ (New Password)</label>
+                <input type="password" id="resetPass" placeholder="กรอกรหัสผ่านใหม่" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="form-group">
+                <label>ยืนยันรหัสผ่านใหม่ (Confirm Password)</label>
+                <input type="password" id="resetPassConfirm" placeholder="ยืนยันรหัสผ่านใหม่" autocomplete="off" spellcheck="false">
+            </div>
+            <input type="hidden" id="resetToken">
+            <button type="button" onclick="submitNewPassword()" style="background-color: var(--primary); color: white;">บันทึกรหัสผ่านใหม่</button>
+            <p style="margin-top: 1rem; text-align: center; font-size: 0.875rem;">
+                <a href="#" onclick="backToLoginFromReset()">กลับหน้าเข้าสู่ระบบ</a>
+            </p>
+        </div>
+
         <!-- Admin View -->
         <div id="adminView" class="hidden">
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
@@ -1094,6 +1119,19 @@
 
         // --- Init ---
         window.onload = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const resetUserId = urlParams.get('resetUserId');
+            const resetToken = urlParams.get('token');
+
+            if (resetUserId && resetToken) {
+                document.getElementById('loginView').classList.add('hidden');
+                document.getElementById('resetPasswordView').classList.remove('hidden');
+                document.getElementById('resetViewUserId').value = resetUserId;
+                document.getElementById('resetToken').value = resetToken;
+                loadOrganizations();
+                return;
+            }
+
             const saved = localStorage.getItem('user_session');
             if (saved) {
                 currentUser = JSON.parse(saved);
@@ -1123,6 +1161,7 @@
                 if (e.key === 'Enter') {
                     if (!document.getElementById('loginView').classList.contains('hidden')) { e.preventDefault(); login(); }
                     else if (!document.getElementById('registerView').classList.contains('hidden')) { e.preventDefault(); register(); }
+                    else if (!document.getElementById('resetPasswordView').classList.contains('hidden')) { e.preventDefault(); submitNewPassword(); }
                     else if (!document.getElementById('adminView').classList.contains('hidden') && document.activeElement.tagName !== 'TEXTAREA') { e.preventDefault(); saveJob(); }
                     else if (!document.getElementById('submissionView').classList.contains('hidden') && !document.getElementById('submissionForm').classList.contains('hidden') && document.activeElement.tagName !== 'TEXTAREA') { e.preventDefault(); submitWork(); }
                 }
@@ -1328,21 +1367,59 @@
         }
 
         async function forgotPassword() {
-            const id = prompt("กรุณากรอก ID บัญชีผู้ใช้งานของคุณเพื่อรับรหัสผ่านทางอีเมล:");
+            const id = prompt("กรุณากรอก ID บัญชีผู้ใช้งานของคุณเพื่อรับลิงก์ตั้งรหัสผ่านใหม่ทางอีเมล:");
             if (!id || !id.trim()) return;
+
+            const siteUrl = window.location.href.split('?')[0];
 
             showLoading(true);
             try {
                 showToast("กำลังตรวจสอบข้อมูลและจัดส่งอีเมล...");
-                const res = await api('resetPasswordAndEmail', { userId: id.trim() });
+                const res = await api('resetPasswordAndEmail', { userId: id.trim(), siteUrl: siteUrl });
                 if (res && res.success) {
-                    alert("ระบบได้จัดส่งรหัสผ่านของคุณไปยังอีเมล: " + res.email + " เรียบร้อยแล้วครับ");
-                    showToast("ส่งอีเมลรหัสผ่านใหม่สำเร็จแล้ว!", "success");
+                    alert("ระบบได้จัดส่งลิงก์สำหรับตั้งค่ารหัสผ่านใหม่ไปยังอีเมล: " + res.email + " เรียบร้อยแล้วครับ โปรดตรวจสอบกล่องข้อความในอีเมลของท่าน");
+                    showToast("ส่งอีเมลลิงก์ตั้งรหัสผ่านสำเร็จแล้ว!", "success");
                 } else {
                     showToast("เกิดข้อผิดพลาดในการกู้คืนรหัสผ่าน", "danger");
                 }
             } catch (err) {
                 alert("ไม่สามารถกู้รหัสผ่านได้: " + err.message);
+                showToast("Error: " + err.message, "danger");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function backToLoginFromReset() {
+            // Remove parameters from URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            document.getElementById('resetPasswordView').classList.add('hidden');
+            document.getElementById('loginView').classList.remove('hidden');
+        }
+
+        async function submitNewPassword() {
+            const userId = document.getElementById('resetViewUserId').value;
+            const token = document.getElementById('resetToken').value;
+            const pass = document.getElementById('resetPass').value;
+            const confirm = document.getElementById('resetPassConfirm').value;
+
+            if (!pass) return showToast('กรุณากรอกรหัสผ่านใหม่', 'danger');
+            if (pass !== confirm) return showToast('รหัสผ่านไม่ตรงกัน', 'danger');
+
+            showLoading(true);
+            try {
+                const res = await api('confirmResetPassword', { userId, token, newPassword: pass });
+                if (res && res.success) {
+                    alert("ตั้งค่ารหัสผ่านใหม่สำเร็จแล้ว! กรุณาใช้รหัสผ่านใหม่นี้ในการเข้าสู่ระบบ");
+                    // Clear inputs
+                    document.getElementById('resetPass').value = '';
+                    document.getElementById('resetPassConfirm').value = '';
+                    backToLoginFromReset();
+                } else {
+                    showToast("เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน", "danger");
+                }
+            } catch (err) {
+                alert("เกิดข้อผิดพลาด: " + err.message);
                 showToast("Error: " + err.message, "danger");
             } finally {
                 showLoading(false);
