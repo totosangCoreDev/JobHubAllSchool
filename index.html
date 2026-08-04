@@ -1401,7 +1401,7 @@
             }
 
             // Silent Data Initialization
-            if (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') {
+            if (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin' || currentUser.role === 'Teacher') {
                 document.getElementById('adminView').classList.remove('hidden');
                 document.getElementById('teacherView').classList.add('hidden');
                 document.getElementById('submissionView').classList.add('hidden');
@@ -1871,7 +1871,7 @@
                 // New Rule: Must also be the creator of the job (unless SuperAdmin or CreatedBy is empty)
                 const isAdmin = currentUser && (
                     currentUser.role === 'SuperAdmin' ||
-                    ((currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') &&
+                    ((currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin' || currentUser.role === 'Teacher') &&
                         jobOrgId === userOrgId &&
                         (!job.CreatedBy || job.CreatedBy.toString().trim() === currentUser.id.toString().trim()))
                 );
@@ -1907,13 +1907,27 @@
                     `;
                 }
 
+                const canShare = currentUser && (
+                    currentUser.role === 'SuperAdmin' ||
+                    (currentUser.role === 'SchoolAdmin' && jobOrgId === userOrgId &&
+                        (!job.CreatedBy || job.CreatedBy.toString().trim() === currentUser.id.toString().trim()))
+                );
+
+                let publicBadgeHtml = '';
+                if (canShare) {
+                    publicBadgeHtml = `<button type="button" onclick="toggleJobPublicStatusUI('${job.id || job.JobID}')" style="top: 12px; right: 46px; position: absolute; z-index: 10; width: auto; height: 28px; padding: 0 12px; font-size: 0.75rem; font-weight: 700; border-radius: 9999px; cursor: pointer; transition: all 0.2s; background: ${jobIsPublic ? '#d1fae5' : '#fee2e2'}; color: ${jobIsPublic ? '#065f46' : '#991b1b'}; border: 1px solid ${jobIsPublic ? '#a7f3d0' : '#fca5a5'}; display: flex; align-items: center; justify-content: center;" title="Toggle Public/Private">${jobIsPublic ? 'Public' : 'Private'}</button>`;
+                } else {
+                    const badgeRight = isAdmin ? '46px' : '12px';
+                    publicBadgeHtml = `<span style="top: 12px; right: ${badgeRight}; position: absolute; z-index: 10; width: auto; height: 28px; padding: 0 12px; font-size: 0.75rem; font-weight: 700; border-radius: 9999px; cursor: default; background: ${jobIsPublic ? '#d1fae5' : '#fee2e2'}; color: ${jobIsPublic ? '#065f46' : '#991b1b'}; border: 1px solid ${jobIsPublic ? '#a7f3d0' : '#fca5a5'}; display: flex; align-items: center; justify-content: center;" title="Status">${jobIsPublic ? 'Public' : 'Private'}</span>`;
+                }
+
                 card.innerHTML = `
                     ${isAdmin ? `
                         <div class="edit-btn" onclick="openEditJobModal('${job.id || job.JobID}')" title="Edit Job" style="top: 12px; left: 12px; position: absolute; z-index: 10;"></div>
-                        <button type="button" onclick="toggleJobPublicStatusUI('${job.id || job.JobID}')" style="top: 12px; right: 46px; position: absolute; z-index: 10; width: auto; height: 28px; padding: 0 12px; font-size: 0.75rem; font-weight: 700; border-radius: 9999px; cursor: pointer; transition: all 0.2s; background: ${jobIsPublic ? '#d1fae5' : '#fee2e2'}; color: ${jobIsPublic ? '#065f46' : '#991b1b'}; border: 1px solid ${jobIsPublic ? '#a7f3d0' : '#fca5a5'}; display: flex; align-items: center; justify-content: center;" title="Toggle Public/Private">${jobIsPublic ? 'Public' : 'Private'}</button>
+                        ${publicBadgeHtml}
                         <div class="delete-btn" onclick="deleteJobUI('${job.JobID}', '${job.Title.replace(/'/g, "\\'")}')" title="Delete Job" style="top: 12px; right: 12px; position: absolute; z-index: 10;"></div>
                     ` : `
-                        <span style="top: 12px; right: 12px; position: absolute; z-index: 10; width: auto; height: 28px; padding: 0 12px; font-size: 0.75rem; font-weight: 700; border-radius: 9999px; cursor: default; background: ${jobIsPublic ? '#d1fae5' : '#fee2e2'}; color: ${jobIsPublic ? '#065f46' : '#991b1b'}; border: 1px solid ${jobIsPublic ? '#a7f3d0' : '#fca5a5'}; display: flex; align-items: center; justify-content: center;" title="Status">${jobIsPublic ? 'Public' : 'Private'}</span>
+                        ${publicBadgeHtml}
                     `}
                     <div style="display: flex; flex-direction: column; height: 100%; position: relative;">
                         <!-- Inset content to avoid buttons -->
@@ -1960,7 +1974,7 @@
 
 
         async function loadJobs(role) {
-            const data = await api('getJobs', { role: currentUser.role, idOrganization: currentUser.idOrganization }, { silent: true });
+            const data = await api('getJobs', { role: currentUser.role, idOrganization: currentUser.idOrganization, organization: currentUser.organization, userId: currentUser.id }, { silent: true });
             const jobs = data.jobs;
             allJobs = jobs;
             window._totalTeachers = data.totalTeachers || 1;
@@ -1982,10 +1996,14 @@
             toggleAllTeachers(false);
             document.getElementById('selectAllTeachers').checked = false;
 
-            const modalTitle = document.querySelector('#createJobModal h2');
-            const submitBtn = document.querySelector('#createJobModal button[onclick*="saveJob"]');
-            if (modalTitle) modalTitle.innerText = 'Create New Job';
-            if (submitBtn) submitBtn.innerText = 'Publish Job';
+            const publicContainer = document.getElementById('jobPublicContainer');
+            if (publicContainer) {
+                if (currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolAdmin')) {
+                    publicContainer.classList.remove('hidden');
+                } else {
+                    publicContainer.classList.add('hidden');
+                }
+            }
 
             document.getElementById('createJobModal').style.display = 'flex';
         }
@@ -2033,6 +2051,15 @@
             const submitBtn = document.querySelector('#createJobModal button[onclick*="saveJob"]');
             if (modalTitle) modalTitle.innerText = 'Edit Job Details';
             if (submitBtn) submitBtn.innerText = 'Save Changes';
+
+            const publicContainer = document.getElementById('jobPublicContainer');
+            if (publicContainer) {
+                if (currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolAdmin')) {
+                    publicContainer.classList.remove('hidden');
+                } else {
+                    publicContainer.classList.add('hidden');
+                }
+            }
 
             document.getElementById('createJobModal').style.display = 'flex';
         }
@@ -2189,6 +2216,11 @@
         }
 
         async function loadSubmissions(jobId) {
+            if (!jobId || jobId.toString().trim() === '') {
+                console.warn('loadSubmissions: jobId is empty');
+                document.getElementById('submissionBoard').innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem; width: 100%;">ไม่พบรหัสงาน (Missing Job ID)</p>';
+                return;
+            }
             const subs = await api('getSubmissions', { jobId: jobId.toString().trim() }, { silent: true });
             const now = new Date();
             document.getElementById('lastSynced').innerText = `Synced: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
@@ -2276,7 +2308,7 @@
             try {
                 await api('deleteSubmission', { submissionId, userId: currentUser.id });
                 showToast('Submission deleted from Sheet');
-                loadSubmissions(activeJob.JobID);
+                loadSubmissions(activeJob.id || activeJob.JobID);
                 loadJobs(currentUser && (currentUser.role === 'SuperAdmin' || currentUser.role === 'SchoolDirector' || currentUser.role === 'SchoolAdmin') ? 'admin' : 'teacher');
             } catch (err) {
                 showToast('Error: ' + err.message, 'danger');
@@ -2527,7 +2559,7 @@
             } else if (!document.getElementById('teacherView').classList.contains('hidden')) {
                 loadJobs('teacher');
             } else if (!document.getElementById('submissionView').classList.contains('hidden')) {
-                if (activeJob) loadSubmissions(activeJob.JobID);
+                if (activeJob) loadSubmissions(activeJob.id || activeJob.JobID);
             }
             showToast('Refreshing data...');
         }
